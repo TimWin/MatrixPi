@@ -59,6 +59,29 @@ def is_finger_straight(reshaped_locations, finger_indices, angle_threshold = 15)
 	straight = all(angle < angle_threshold for angle in angles)
 	return straight
 	
+def is_hand_openend(reshaped_locations, angle_threshold = 15):
+	#thumb = is_finger_straight(reshaped_locations, thumb_indices, angle_threshold)
+	index = is_finger_straight(reshaped_locations, index_indices, angle_threshold)
+	middle = is_finger_straight(reshaped_locations, middle_indices, angle_threshold)
+	ring = is_finger_straight(reshaped_locations, ring_indices, angle_threshold)
+	pinky = is_finger_straight(reshaped_locations, pinky_indices, angle_threshold)
+	return index and middle and ring and pinky
+	
+def gesture_index_only(reshaped_locations, angle_threshold=15):
+	index = is_finger_straight(reshaped_locations, index_indices, angle_threshold)
+	middle = is_finger_straight(reshaped_locations, middle_indices, angle_threshold)
+	ring = is_finger_straight(reshaped_locations, ring_indices, angle_threshold)
+	pinky = is_finger_straight(reshaped_locations, pinky_indices, angle_threshold)
+	#print(index, ",", middle, ",", ring, ",", pinky)
+	return index and not middle and not ring and not pinky
+	
+def calc_angles_between_fingers(reshaped_locations):
+    index_vector = reshaped_locations[8] - reshaped_locations[5]
+    middle_vector = reshaped_locations[12] - reshaped_locations[9]
+    ring_vector = reshaped_locations[16] - reshaped_locations[13]
+    pinky_vector = reshaped_locations[20] - reshaped_locations[17]
+    return ( angle_between_vectors(index_vector, middle_vector), angle_between_vectors(middle_vector, ring_vector), angle_between_vectors(ring_vector, pinky_vector) )
+	
 def draw_finger(img, locations, indices):
 	center = locations[indices[0]]
 	middle = locations[indices[1]]
@@ -70,7 +93,7 @@ def draw_fingers(img, locations):
 	#int_locations = [int(x) for x in locations]
 	reshaped_int_locations = [[int(locations[i]), int(locations[i+1])]
                      for i in range(0, len(locations), 3)]
-    #thumb
+        #thumb
 	draw_finger(img, reshaped_int_locations, (0, 2, 4))
 	#index
 	draw_finger(img, reshaped_int_locations, (5, 7, 8))
@@ -91,27 +114,15 @@ def analyze_model_results(img, results, presence_threshold=0.5):
             locations = results[world_locations]
             reshaped_locations = locations.reshape(-1,3)
             calc_area(img, reshaped_locations)
-            
-            #angles = calc_finger_angles(reshaped_locations, middle_indices)
-            #straight = all(angle < 15 for angle in angles)
-            #print(straight)
+	    
+            hand_opened = is_hand_openend(reshaped_locations, 20)
+            if hand_opened:
+                #print(gesture_index_only(reshaped_locations))
+                print(calc_angles_between_fingers(reshaped_locations))
+            #print(hand_opened)
             
             draw_fingers(img, locations)
             
-            #angles = vector_2d_angle(locations)
-            #thumb test
-            #center = ( int(locations[0]), int(locations[1]) )
-            #tip = ( int(locations[4*3+0]), int(locations[4*3+1]) )
-            
-            #index_start = ( int(locations[5*3+0]), int(locations[5*3+1]) )
-            #index_end = ( int(locations[8*3+0]), int(locations[8*3+1]) )
-            #middle_start = ( int(locations[9*3+0]), int(locations[9*3+1]) )
-            #middle_end = ( int(locations[12*3+0]), int(locations[12*3+1]) )
-            
-            #cv2.line(img, center, tip, (255,0,0), 3)
-            #cv2.line(img, index_start, index_end, (255,0,0), 3)
-            #cv2.line(img, middle_start, middle_end, (255,0,0), 3)
-            #print(reshaped_locations)
 
 write_img_count = 0
 while True:
