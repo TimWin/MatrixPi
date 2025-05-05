@@ -12,6 +12,20 @@ import HiwonderSDK.mecanum as mecanum
 import HiwonderSDK.ros_robot_controller_sdk as rrc
 #robot
 board = rrc.Board()
+def robot_move_forward(duty = 50):
+	board.set_motor_duty([[1, duty], [2, -duty], [3, duty], [4, -duty]])
+
+def robot_move_left(duty = 50):
+	board.set_motor_duty([[1, duty], [2, duty], [3, duty], [4, duty]])
+	
+def robot_move_right(duty = 50):
+	board.set_motor_duty([[1, -duty], [2, -duty], [3, -duty], [4, -duty]])
+
+def robot_move_backward(duty = 50):
+	robot_move_forward(-duty)
+	
+def robot_abort_move():
+	robot_move_forward(0)
 
 # Camera test
 camera = Camera.Camera(resolution=(1280, 720))
@@ -117,6 +131,7 @@ def draw_fingers(img, locations):
 
 def analyze_model_results(img, results, presence_threshold=0.5):
     global current_gesture
+    current_gesture = Gestures.Unknown
     if results is not None:
         p_present = results[hand_present]
         if p_present> presence_threshold:
@@ -140,8 +155,13 @@ def analyze_model_results(img, results, presence_threshold=0.5):
             
             draw_fingers(img, locations)
 
-#def move_based_on_gesture():
-    
+def move_based_on_gesture():
+    if current_gesture == Gestures.Unknown or current_gesture == Gestures.Fist:
+        robot_abort_move()
+    elif current_gesture == Gestures.HandOpen:
+        robot_move_forward()
+    elif current_gesture == Gestures.HandClosed:
+        robot_move_backward()
 
 write_img_count = 0
 while True:
@@ -157,6 +177,7 @@ while True:
         #print(f"AI took {elapsed_time:.6f} ms")
         analyze_model_results(resized_frame, results)
         #print(current_gesture)
+        move_based_on_gesture()
 
         cv2.imshow('frame', resized_frame)
         key = cv2.waitKey(1)
