@@ -4,7 +4,14 @@ import Camera
 import time
 import math
 import numpy as np
+from enum import Enum
 from devices.hailo import Hailo
+
+import HiwonderSDK.PID as PID
+import HiwonderSDK.mecanum as mecanum
+import HiwonderSDK.ros_robot_controller_sdk as rrc
+#robot
+board = rrc.Board()
 
 # Camera test
 camera = Camera.Camera(resolution=(1280, 720))
@@ -27,6 +34,10 @@ index_indices = (5,6,7,8)
 middle_indices = (9,10,11,12)
 ring_indices = (13,14,15,16)
 pinky_indices = (17,18,19,20)
+
+#Gestures
+Gestures = Enum("Gestures", "Unknown Fist HandOpen HandClosed")
+current_gesture = Gestures.Unknown
 
 def calc_area(img, reshaped_locations):
 	x_coords = reshaped_locations[:,0]
@@ -105,6 +116,7 @@ def draw_fingers(img, locations):
 	draw_finger(img, reshaped_int_locations, (17, 19, 20))
 
 def analyze_model_results(img, results, presence_threshold=0.5):
+    global current_gesture
     if results is not None:
         p_present = results[hand_present]
         if p_present> presence_threshold:
@@ -117,12 +129,19 @@ def analyze_model_results(img, results, presence_threshold=0.5):
 	    
             hand_opened = is_hand_openend(reshaped_locations, 20)
             if hand_opened:
-                #print(gesture_index_only(reshaped_locations))
-                print(calc_angles_between_fingers(reshaped_locations))
-            #print(hand_opened)
+                angles = calc_angles_between_fingers(reshaped_locations)
+                fingers_closed = all([x < 10 for x in angles])
+                if fingers_closed:
+                    current_gesture = Gestures.HandClosed
+                else:
+                    current_gesture = Gestures.HandOpen
+            else:
+                current_gesture = Gestures.Fist
             
             draw_fingers(img, locations)
-            
+
+#def move_based_on_gesture():
+    
 
 write_img_count = 0
 while True:
@@ -137,11 +156,8 @@ while True:
         #elapsed_time = (end_time - start_time) * 1000.0
         #print(f"AI took {elapsed_time:.6f} ms")
         analyze_model_results(resized_frame, results)
-            #for key, value in results.items():
-            #    print(key, ", ", value.shape)
-            #break
-            #print(results["hand_landmark/fc4"])
-            #print(results[normalized_locations])
+        #print(current_gesture)
+
         cv2.imshow('frame', resized_frame)
         key = cv2.waitKey(1)
         if key == 27:
