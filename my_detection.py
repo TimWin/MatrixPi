@@ -6,6 +6,7 @@ import math
 import numpy as np
 from enum import Enum
 from devices.hailo import Hailo
+from collections import deque, Counter
 
 import HiwonderSDK.PID as PID
 import HiwonderSDK.mecanum as mecanum
@@ -52,14 +53,49 @@ pinky_indices = (17,18,19,20)
 #Gestures
 Gestures = Enum("Gestures", "Unknown Fist HandOpen HandClosed")
 current_gesture = Gestures.Unknown
+gesture_center_x = -1
+gesture_center_y = -1
+
+# Servo
+servo_x = 1500
+servo_y = 1500
+servo_x_pid = PID.PID(P=0.1, I=0.0000, D=0.0000) 
+servo_y_pid = PID.PID(P=0.0125, I=0.0005, D=0.000)
+
+#Circular Buffer
+# Create a circular buffer of size 16
+gesture_buffer = deque(maxlen=16)
+# Function to add to the buffer
+def add_to_buffer(value: Gestures):
+    gesture_buffer.append(value)
+    
+#LED control
+def set_led(color):
+    if color == "red":
+        board.set_rgb([[1, 255, 0, 0], [2, 255, 0, 0]])
+    elif color == "green":
+        board.set_rgb([[1, 0, 255, 0], [2, 0, 255, 0]])
+    elif color == "blue":
+        board.set_rgb([[1, 0, 0, 255], [2, 0, 0, 255]])
+    elif color == "yellow":
+        board.set_rgb([[1, 0, 255, 255], [2, 0, 255, 255]])
+    else:
+        board.set_rgb([[1, 0, 0, 0], [2, 0, 0, 0]])
 
 def calc_area(img, reshaped_locations):
+	global gesture_center_x
+	global gesture_center_y
+	
 	x_coords = reshaped_locations[:,0]
 	y_coords = reshaped_locations[:,1]
 	min_x, max_x = x_coords.min(), x_coords.max()
 	min_y, max_y = y_coords.min(), y_coords.max()
 	cv2.rectangle(img, (int(min_x), int(min_y)), (int(max_x), int(max_y)), (0,255,0), 2)
 	area = (max_y - min_y) * (max_x - min_x)
+	img_h, img_w = img.shape[:2]
+	gesture_center_x =  int(min_x + max_x) / 2
+	gesture_center_y =  int(min_y + max_y) / 2
+	#print(gesture_center_x, ", ", gesture_center_y)
 	#print(area)
 	#print("(", min_x, ",", min_y, "), (", max_x, ",", max_y, ")")
 	
@@ -156,13 +192,54 @@ def analyze_model_results(img, results, presence_threshold=0.5):
             draw_fingers(img, locations)
 
 def move_based_on_gesture():
-    if current_gesture == Gestures.Unknown or current_gesture == Gestures.Fist:
+    # get most frequent item in buffer
+    if len(gesture_buffer) < 16:
+        return
+    gesture_count = Counter(gesture_buffer)
+    most_common_gesture = gesture_count.most_common(1)
+    #print("Gesture: ", most_common_gesture[0][0])
+    
+    if most_common_gesture == Gestures.Unknown:
         robot_abort_move()
-    elif current_gesture == Gestures.HandOpen:
+        set_led("yellow")
+    elif most_common_gesture == Gestures.Fist:
+        robot_abort_move()
+        set_led("blue")
+    elif most_common_gesture == Gestures.HandOpen:
         robot_move_forward()
-    elif current_gesture == Gestures.HandClosed:
+        set_led("green")
+    elif most_common_gesture == Gestures.HandClosed:
         robot_move_backward()
-
+        set_led("blue")
+	
+def track_hand_with_servo(width, height):
+    global gesture_center_x
+    global gesture_center_y
+    global servo_x, servo_y
+    if gesture_center_x != -1 and gesture_center_y != -1:
+        if abs(gesture_center_x - width/2.0) < 15: 
+            gesture_center_x = width/2.0
+        servo_x_pid.SetPoint = width/2.0 # 设定(set)
+        servo_x_pid.update(gesture_center_x)     # 当前(current)
+        servo_x += int(servo_x_pid.output)  # 获取PID输出值(get PID output value)
+	
+        servo_x = 800 if servo_x < 800 else servo_x # 设置舵机范围(set servo range)
+        servo_x = 2200 if servo_x > 2200 else servo_x
+	
+	# 根据摄像头Y轴坐标追踪(track based on the camera Y-axis coordinates)
+        if abs(gesture_center_y - height/2.0) < 10: # 移动幅度比较小，则不需要动(if the movement amplitude is small, no action is required)
+            gesture_center_y = height/2.0
+        servo_y_pid.SetPoint = height/2.0  
+        servo_y_pid.update(gesture_center_y)
+        servo_y -= int(servo_y_pid.output) # 获取PID输出值(gei PID output value)
+	
+        servo_y = 1000 if servo_y < 1000 else servo_y # 设置舵机范围(set servo range)
+        servo_y = 1900 if servo_y > 1900 else servo_y
+	# print(servo_y, center_y) 
+	board.pwm_servo_set_position(0.02, [[1, servo_y], [2, servo_x]])  # 设置舵机移动(set servo movement)
+        #print(servo_x, ", ", servo_y, ", ", servo_x_pid.output, ", ", servo_y_pid.output)
+	
+	
 write_img_count = 0
 while True:
     img = camera.frame
@@ -176,7 +253,9 @@ while True:
         #elapsed_time = (end_time - start_time) * 1000.0
         #print(f"AI took {elapsed_time:.6f} ms")
         analyze_model_results(resized_frame, results)
+        add_to_buffer(current_gesture)
         #print(current_gesture)
+        track_hand_with_servo(model_w, model_h)
         move_based_on_gesture()
 
         cv2.imshow('frame', resized_frame)
