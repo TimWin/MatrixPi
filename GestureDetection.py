@@ -47,6 +47,10 @@ class GestureDetection:
 	def detected_gesture(self):
 		return self._detected_gesture
 		
+	def get_hand_center(self):
+		center_x = int(self._min_x + self._max_x) / 2
+		center_y = int(self._min_y + self._max_y) / 2
+		return center_x, center_y
 		
 	def _calc_finger_angles(self, reshaped_locations, indices = (5,6,7,8)):
 		lower_vector = reshaped_locations[indices[1]] - reshaped_locations[indices[0]]
