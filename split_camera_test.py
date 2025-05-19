@@ -7,6 +7,8 @@ from devices.hailo import Hailo
 import threading
 import GestureDetection as gd
 
+from Video.FrameStream import FrameStreamer
+
 # Camera test
 camera = Camera.Camera(resolution=(1280, 720))
 camera.camera_open(correction=False)
@@ -42,9 +44,9 @@ def show_frame():
 			time.sleep(0.03333)
 	cv2.destroyAllWindows()
 
-th = threading.Thread(target=show_frame)
-th.setDaemon(True)
-th.start()
+#th = threading.Thread(target=show_frame)
+#th.setDaemon(True)
+#th.start()
 
 def pre_process_img(img, width, height):
 	return cv2.resize(img, (width, height)).copy()
@@ -59,6 +61,12 @@ def run_ai(img, detector):
 	detector.draw_gesture(img, landmarks_world)
 
 #main
+
+#Stream
+frame_streamer = FrameStreamer()
+frame_streamer.start(host='0.0.0.0', port=5000)
+
+
 prev_time = time.perf_counter()
 while not finish_process:
 	current_time = time.perf_counter()
@@ -66,7 +74,7 @@ while not finish_process:
 	prev_time = current_time
 	#print(f"Frame processing took {elapsed_time:.6f} ms")
 	
-	raw_img = camera.frame
+	raw_img = camera.get_next_frame_blocking() #frame
 	if raw_img is not None:
 		raw_img = cv2.flip(raw_img, 1)
 		height, width, _ = raw_img.shape
@@ -82,6 +90,7 @@ while not finish_process:
 		print("Gesture left: ", detector_left.detected_gesture, ", right: ", detector_right.detected_gesture)
 		
 		img = np.hstack((processed_left, processed_right))
+		frame_streamer.update_frame(img)
 		
 		#cv2.imshow('frame', left_image)
 		#time.sleep(0.1)
@@ -89,3 +98,4 @@ while not finish_process:
 		
 hailo.close()
 camera.camera_close()
+streamer_thread.stop()

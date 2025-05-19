@@ -21,6 +21,13 @@ class FrameStreamer:
         app.add_url_rule('/', 'index', instance.index)
         app.add_url_rule('/video', 'video', instance.video)
         return app
+        
+    def start(self, host='0.0.0.0', port=5000):
+        threading.Thread(
+            target=self.app.run,
+            kwargs={"host": host, "port": port, "threaded": True},
+            daemon=True
+        ).start()
 
     # External method to pass frame data
     # Add a queue for buffering
@@ -54,15 +61,16 @@ class FrameStreamer:
 
 
 # Function to simulate external camera capture thread
-def capture_frames(streamer):
+"""def capture_frames(streamer):
     cap = cv2.VideoCapture(0)  # Open camera
     while True:
         success, frame = cap.read()
         if success:
-            streamer.update_frame(frame)  # Pass frame to the streamer
+            streamer.update_frame(frame)  # Pass frame to the streamer"""
 
 
 if __name__ == '__main__':
+    print("Starting main thread")
     # Instantiate the camera streamer and start the capture thread
     streamer = FrameStreamer()
     threading.Thread(target=capture_frames, args=(streamer,), daemon=True).start()
