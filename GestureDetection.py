@@ -97,7 +97,6 @@ class GestureDetection:
 		self._detected_gesture = gesture_count.most_common(1)[0][0]
 	
 	def update(self, hand_present, hand_direction, world_locations):
-		self.current_gesture = Gestures.Unknown
 		if hand_present > self._presence_threshold:
 			reshaped_locations = world_locations.reshape(-1,3)
 			hand_opened = self._is_hand_openend(reshaped_locations)
@@ -134,7 +133,9 @@ class GestureDetection:
 						self._current_gesture = Gestures.HandOpen
 			else:
 				self._current_gesture = Gestures.Fist
-		
+		else:
+			self._current_gesture = Gestures.Unknown
+			
 		self._gesture_buffer.append(self._current_gesture)
 		self._compute_gesture()
 		

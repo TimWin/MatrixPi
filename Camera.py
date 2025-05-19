@@ -20,6 +20,9 @@ class Camera:
         self.height = resolution[1]
         self.frame = None
         self.opened = False
+        self.frame_lock = threading.Lock()
+        self.frame_cv = threading.Condition(lock=self.frame_lock)
+        
         
         #加载参数(load parameter)
         self.param_data = np.load(calibration_param_path + '.npz')
@@ -54,6 +57,11 @@ class Camera:
             self.cap = None
         except Exception as e:
             print('关闭摄像头失败:', e)
+            
+    def get_next_frame_blocking(self):
+        with self.frame_lock:
+            self.frame_cv.wait()
+            return self.frame
 
     def camera_task(self):
         while True:
@@ -69,6 +77,8 @@ class Camera:
                             self.frame = frame_resize
                             
                         ret = False
+                        with self.frame_lock:
+                            self.frame_cv.notify_all()
                     else:
                         self.frame = None
                         self.cap.release()

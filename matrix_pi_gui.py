@@ -111,7 +111,7 @@ world_locations = "hand_landmark/fc1"
 
 #DETECTOR
 detector = GestureDetection(0.75, buffer_size=24)
-
+gesture_counter = 0
 while True:
 	img = camera.frame
 	if img is not None:
@@ -131,10 +131,17 @@ while True:
 		track_based_on_center(detector.detected_gesture, detector.get_hand_center(), model_w, model_h)
 		
 		#show :-)
-		#cv2.imshow('frame', resized_frame)
-		#key = cv2.waitKey(1)
-		#if key == 27:
-		#	break
+		if gesture_counter > 16:
+			print(detector.detected_gesture)
+			gesture_counter = 0
+		gesture_counter = gesture_counter + 1
+		
+		big_frame = cv2.resize(resized_frame, (model_w*2, model_h*2))
+		
+		cv2.imshow('frame', big_frame)
+		key = cv2.waitKey(1)
+		if key == 27:
+			break
 			
 hailo.close()
 camera.camera_close()
