@@ -118,6 +118,7 @@ while True:
 		#image processing
 		frame = img.copy() 
 		resized_frame = cv2.resize(frame, (model_w, model_h))
+		#resized_frame = resized_frame.astype(np.float32) / 255.0
 		#ai
 		results = hailo.run(resized_frame)
 		hand_presence = results[hand_present]
@@ -127,7 +128,7 @@ while True:
 		detector.update(hand_presence, hand_direction, landmarks_world)
 		detector.draw_gesture(resized_frame, landmarks_world)
 		#move
-		move_based_on_gesture(detector.detected_gesture)
+		#move_based_on_gesture(detector.detected_gesture)
 		track_based_on_center(detector.detected_gesture, detector.get_hand_center(), model_w, model_h)
 		
 		#show :-)
